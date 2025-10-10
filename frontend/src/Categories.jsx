@@ -2,81 +2,63 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import api from "./api";
 
-export default function Categories() {
-  const [rows, setRows] = useState([]);
-  const [editing, setEditing] = useState(null);
-  const { register, handleSubmit, reset, setValue } = useForm();
+const LIST_URL = "/api/categories";
 
-  async function load() {
-    const { data } = await api.get("/api/categories");
+export default function Categories(){
+  const [rows, setRows] = useState([]);
+  const { register, handleSubmit, reset } = useForm();
+
+  async function load(){
+    const { data } = await api.get(LIST_URL);
     setRows(data);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(()=>{ load(); }, []);
 
-  function startEdit(row) {
-    setEditing(row.id);
-    setValue("name", row.name);
-    setValue("description", row.description || "");
-  }
-  function cancelEdit() {
+  async function onSubmit(form){
+    await api.post("/api/categories", form);
     reset();
-    setEditing(null);
+    load();
   }
-
-  async function onSubmit(form) {
-    try {
-      if (editing) {
-        await api.put(`/api/categories/${editing}`, form);
-      } else {
-        await api.post("/api/categories", form);
-      }
-      reset();
-      setEditing(null);
-      load();
-    } catch (e) {
-      alert(e?.response?.data?.error || e.message);
-    }
-  }
-
-  async function remove(id) {
-    if (!confirm("Delete category?")) return;
-    try {
-      await api.delete(`/api/categories/${id}`);
-      load();
-    } catch (e) {
-      alert(e?.response?.data?.error || e.message);
-    }
+  async function onDelete(id){
+    if(!confirm("Delete this category?")) return;
+    await api.delete(`/api/categories/${id}`);
+    load();
   }
 
   return (
-    <div>
-      <h3>Categories</h3>
+    <section className="card">
+      <h2>Categories</h2>
 
-      <form onSubmit={handleSubmit(onSubmit)} style={{display:"grid", gap:8, maxWidth:420}}>
-        <input placeholder="Name" {...register("name", {required:true})}/>
-        <input placeholder="Description" {...register("description")}/>
-        <div style={{display:"flex", gap:8}}>
-          <button type="submit">{editing ? "Save" : "Add"}</button>
-          {editing && <button type="button" onClick={cancelEdit}>Cancel</button>}
+      <form className="form" onSubmit={handleSubmit(onSubmit)}>
+        <input placeholder="Name" {...register("name")} required />
+        <input placeholder="Description" {...register("description")} />
+        <div className="actions">
+          <button className="btn btn--primary" type="submit">Add</button>
         </div>
       </form>
 
-      <table border="1" cellPadding="6" style={{marginTop:16, width:"100%"}}>
-        <thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Action</th></tr></thead>
+      <table className="table">
+        <thead>
+          <tr>
+            <th style={{width:90}}>ID</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th style={{width:140}} className="right">Action</th>
+          </tr>
+        </thead>
         <tbody>
           {rows.map(r => (
             <tr key={r.id}>
               <td>{r.id}</td>
               <td>{r.name}</td>
               <td>{r.description}</td>
-              <td style={{display:"flex", gap:8}}>
-                <button onClick={() => startEdit(r)}>Edit</button>
-                <button onClick={() => remove(r.id)}>Delete</button>
+              <td className="right">
+                <button className="btn btn--danger" onClick={()=>onDelete(r.id)}>Delete</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </div>
+    </section>
   );
 }

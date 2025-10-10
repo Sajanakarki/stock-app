@@ -2,92 +2,93 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import api from "./api";
 
-export default function Companies() {
+export default function Companies(){
   const [rows, setRows] = useState([]);
   const [cats, setCats] = useState([]);
-  const [editing, setEditing] = useState(null);
   const { register, handleSubmit, reset, setValue } = useForm();
 
-  async function load() {
-    const [c1, c2] = await Promise.all([
+  async function load(){
+    const [{ data: companies }, { data: categories }] = await Promise.all([
       api.get("/api/companies"),
       api.get("/api/categories"),
     ]);
-    setRows(c1.data);
-    setCats(c2.data);
+    setRows(companies);
+    setCats(categories);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(()=>{ load(); }, []);
 
-  function startEdit(row) {
-    setEditing(row.id);
-    setValue("name", row.name);
-    setValue("category_id", String(row.category_id));
-    setValue("ticker_symbol", row.ticker_symbol);
-    setValue("description", row.description || "");
-  }
-  function cancelEdit() {
+  async function onSubmit(f){
+    await api.post("/api/companies", f);
     reset();
-    setEditing(null);
+    load();
   }
-
-  async function onSubmit(form) {
-    try {
-      form.category_id = Number(form.category_id);
-      if (editing) {
-        await api.put(`/api/companies/${editing}`, form);
-      } else {
-        await api.post("/api/companies", form);
-      }
-      reset();
-      setEditing(null);
-      load();
-    } catch (e) {
-      alert(e?.response?.data?.error || e.message);
-    }
+  function patchForm(c){
+    setValue("name", c.name);
+    setValue("category_id", c.category_id);
+    setValue("ticker_symbol", c.ticker_symbol);
+    setValue("description", c.description);
+    setValue("id", c.id); // hidden for update
   }
-
-  async function remove(id) {
-    if (!confirm("Delete company?")) return;
+  async function onUpdate(f){
+    await api.put(`/api/companies/${f.id}`, f);
+    reset();
+    load();
+  }
+  async function onDelete(id){
+    if(!confirm("Delete this company?")) return;
     await api.delete(`/api/companies/${id}`);
     load();
   }
 
   return (
-    <div>
-      <h3>Companies</h3>
-      <form onSubmit={handleSubmit(onSubmit)} style={{display:"grid", gap:8, maxWidth:520}}>
-        <input placeholder="Name" {...register("name", {required:true})}/>
-        <select {...register("category_id", {required:true})} defaultValue="">
-          <option value="" disabled>Choose category</option>
+    <section className="card">
+      <h2>Companies</h2>
+
+      <form
+        className="form"
+        onSubmit={handleSubmit((f)=> f.id ? onUpdate(f) : onSubmit(f))}
+      >
+        <input type="hidden" {...register("id")} />
+        <input placeholder="Name" {...register("name")} required />
+        <select {...register("category_id")} required>
+          <option value="">Choose category</option>
           {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <input placeholder="Ticker symbol" {...register("ticker_symbol", {required:true})}/>
-        <input placeholder="Description" {...register("description")}/>
-        <div style={{display:"flex", gap:8}}>
-          <button type="submit">{editing ? "Save" : "Add"}</button>
-          {editing && <button type="button" onClick={cancelEdit}>Cancel</button>}
+        <input placeholder="Ticker symbol" {...register("ticker_symbol")} />
+        <input placeholder="Description" {...register("description")} />
+        <div className="row mt-8">
+          <button className="btn btn--primary" type="submit">Save</button>
+          <button className="btn btn--ghost" type="button" onClick={()=>reset()}>Clear</button>
         </div>
       </form>
 
-      <table border="1" cellPadding="6" style={{marginTop:16, width:"100%"}}>
+      <table className="table">
         <thead>
-          <tr><th>ID</th><th>Name</th><th>Category</th><th>Ticker</th><th>Action</th></tr>
+          <tr>
+            <th style={{width:90}}>ID</th>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Ticker</th>
+            <th style={{width:180}} className="right">Action</th>
+          </tr>
         </thead>
         <tbody>
           {rows.map(r => (
             <tr key={r.id}>
               <td>{r.id}</td>
               <td>{r.name}</td>
-              <td>{r.category_name}</td>
+              <td><span className="badge">{r.category_name}</span></td>
               <td>{r.ticker_symbol}</td>
-              <td style={{display:"flex", gap:8}}>
-                <button onClick={() => startEdit(r)}>Edit</button>
-                <button onClick={() => remove(r.id)}>Delete</button>
+              <td className="right">
+                <div className="row">
+                  <button className="btn" onClick={()=>patchForm(r)}>Edit</button>
+                  <button className="btn btn--danger" onClick={()=>onDelete(r.id)}>Delete</button>
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </div>
+    </section>
   );
 }
